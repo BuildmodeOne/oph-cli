@@ -1,0 +1,30 @@
+{
+  "name": "opheys-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
+    "check": "tsc --noEmit && biome check",
+    "check:fix": "biome check --fix"
+  },
+  "bin": {
+    "opheys": "dist/index.js"
+  },
+  "keywords": [],
+  "author": "Philipp Opheys",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264",
+  "dependencies": {
+    "@clack/prompts": "^1.0.0",
+    "commander": "^14.0.3",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.13",
+    "@types/node": "^25.1.0",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3"
+  }
+}
