@@ -13,15 +13,12 @@ export async function execAsync(
   const s = spinner()
   s.start(startMessage)
   try {
-    const { stderr } = await execAsyncUtil(command)
-
-    if (stderr) {
-      throw new Error(stderr)
-    }
+    await execAsyncUtil(command)
 
     s.stop(successMessage)
     return
   } catch (_error) {
+    console.error(_error)
     s.stop(errorMessage)
   }
 }
