@@ -1,9 +1,16 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { intro, outro } from '@clack/prompts'
+import { intro, log, outro } from '@clack/prompts'
 import type { Command } from 'commander'
 import color from 'picocolors'
-import { execAsync } from '@/utils'
+import {
+  execAsync,
+  getInstalledVersion,
+  getNextMinorVersion,
+  isDevDependency,
+  isPackageInstalled,
+  readProjectPackageJson,
+} from '@/utils'
 
 type PackageManager = 'bun' | 'pnpm'
 
@@ -25,6 +32,45 @@ function detectPackageManager(): PackageManager {
   }
 
   throw new Error('Unsupported package manager')
+}
+
+async function updateToNextMinor(
+  pm: PackageManager,
+  packageName: string,
+  isDev: boolean
+): Promise<void> {
+  const currentVersion = await getInstalledVersion(packageName)
+
+  if (!currentVersion) {
+    log.warn(
+      color.yellow(
+        `Could not determine installed version of ${color.bold(packageName)}, skipping minor update`
+      )
+    )
+    return
+  }
+
+  const nextMinor = await getNextMinorVersion(packageName, currentVersion)
+
+  if (!nextMinor) {
+    log.info(
+      color.dim(
+        `${color.bold(packageName)} v${currentVersion} — no newer minor version available`
+      )
+    )
+    return
+  }
+
+  const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : ''
+
+  await execAsync(
+    `${pm} add ${devFlag} ${packageName}@${nextMinor}`
+      .replace(/\s+/g, ' ')
+      .trim(),
+    `Updating ${packageName} from v${currentVersion} to v${nextMinor}`,
+    `Failed to update ${packageName} to v${nextMinor}`,
+    `Updated ${packageName} from v${currentVersion} to v${nextMinor}`
+  )
 }
 
 export function loadCommands(program: Command) {
@@ -55,8 +101,30 @@ export function loadCommands(program: Command) {
         'Updated dependencies successfully'
       )
 
+      // React / Next.js minor version updates
+      const packageJson = readProjectPackageJson()
+      const frameworkPackages = ['react', 'react-dom', 'next']
+      const installedFrameworkPackages = frameworkPackages.filter((pkg) =>
+        isPackageInstalled(packageJson, pkg)
+      )
+
+      if (installedFrameworkPackages.length > 0) {
+        log.info(
+          color.cyan(
+            `Detected ${installedFrameworkPackages.map((p) => color.bold(p)).join(', ')} — checking for minor updates`
+          )
+        )
+
+        for (const pkg of installedFrameworkPackages) {
+          const isDev = isDevDependency(packageJson, pkg)
+          await updateToNextMinor(pm, pkg, isDev)
+        }
+      }
+
       const addExactFlag =
         pm === 'bun' ? '--dev --exact' : '--save-dev --save-exact'
+
+      const biomeVersionBefore = await getInstalledVersion('@biomejs/biome')
 
       await execAsync(
         `${pm} add ${addExactFlag} @biomejs/biome@latest`,
@@ -64,6 +132,12 @@ export function loadCommands(program: Command) {
         'Failed to update Biome',
         'Updated Biome successfully'
       )
+
+      const biomeVersionAfter = await getInstalledVersion('@biomejs/biome')
+      const biomeWasUpdated =
+        biomeVersionBefore !== null &&
+        biomeVersionAfter !== null &&
+        biomeVersionBefore !== biomeVersionAfter
 
       const execPrefix = pm === 'bun' ? 'bunx' : 'pnpm exec'
 
@@ -73,6 +147,21 @@ export function loadCommands(program: Command) {
         'Failed to update Biome configuration',
         'Updated Biome configuration successfully'
       )
+
+      if (biomeWasUpdated) {
+        log.info(
+          color.cyan(
+            `Biome updated from v${biomeVersionBefore} to v${biomeVersionAfter} — applying new formatting rules`
+          )
+        )
+
+        await execAsync(
+          `${execPrefix} biome check --write .`,
+          'Applying Biome formatting and lint fixes',
+          'Failed to apply Biome formatting and lint fixes',
+          'Applied Biome formatting and lint fixes successfully'
+        )
+      }
 
       outro(color.green('Project dependencies updated successfully!'))
     })
