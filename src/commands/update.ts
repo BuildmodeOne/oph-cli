@@ -141,6 +141,18 @@ export function loadCommands(program: Command) {
         }
       }
 
+      // Tailwind CSS upgrade
+      if (isPackageInstalled(packageJson, 'tailwindcss')) {
+        const execPrefix = pm === 'bun' ? 'bunx' : 'pnpx'
+
+        await execAsync(
+          `${execPrefix} @tailwindcss/upgrade --force`,
+          'Upgrading Tailwind CSS',
+          'Failed to upgrade Tailwind CSS',
+          'Upgraded Tailwind CSS successfully'
+        )
+      }
+
       const addExactFlag =
         pm === 'bun' ? '--dev --exact' : '--save-dev --save-exact'
 
