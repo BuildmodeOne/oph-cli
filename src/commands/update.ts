@@ -7,7 +7,9 @@ import {
   execAsync,
   getInstalledVersion,
   getNextMinorVersion,
+  isBranchUpToDate,
   isDevDependency,
+  isGitRepo,
   isPackageInstalled,
   readProjectPackageJson,
 } from '@/utils'
@@ -77,12 +79,30 @@ export function loadCommands(program: Command) {
   program
     .command('update')
     .description('Update project dependencies')
-    .action(async () => {
+    .option('-f, --force', 'Skip git branch check', false)
+    .action(async (options: { force: boolean }) => {
       console.log()
 
       const pm = detectPackageManager()
 
       intro(color.inverse(` Opheys CLI - Update Project Dependencies (${pm}) `))
+
+      if (isGitRepo()) {
+        if (options.force) {
+          log.warn(color.yellow('Git branch check skipped (--force)'))
+        } else {
+          const { upToDate, reason } = await isBranchUpToDate()
+
+          if (!upToDate) {
+            log.error(color.red(reason))
+            log.info(color.dim('Use --force or -f to bypass this check'))
+            outro(color.red('Update aborted'))
+            process.exit(1)
+          }
+
+          log.success(color.green('Git branch is up to date'))
+        }
+      }
 
       if (pm === 'pnpm') {
         // use latest corepack

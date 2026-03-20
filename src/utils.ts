@@ -1,10 +1,49 @@
 import { exec } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { spinner } from '@clack/prompts'
 
 const execAsyncUtil = promisify(exec)
+
+export function isGitRepo(): boolean {
+  return existsSync(resolve(process.cwd(), '.git'))
+}
+
+export async function isBranchUpToDate(): Promise<{
+  upToDate: boolean
+  reason: string
+}> {
+  try {
+    await execAsyncUtil('git fetch')
+
+    const { stdout: status } = await execAsyncUtil('git status -uno')
+    const statusText = status.trim()
+
+    if (statusText.includes('Your branch is behind')) {
+      return {
+        upToDate: false,
+        reason:
+          'Your branch is behind the remote. Pull the latest changes first.',
+      }
+    }
+
+    if (statusText.includes('have diverged')) {
+      return {
+        upToDate: false,
+        reason:
+          'Your branch has diverged from the remote. Resolve this before updating.',
+      }
+    }
+
+    return { upToDate: true, reason: '' }
+  } catch {
+    return {
+      upToDate: false,
+      reason: 'Failed to determine git branch status.',
+    }
+  }
+}
 
 export async function execAsync(
   command: string,
