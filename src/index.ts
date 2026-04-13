@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander'
+import { loadDashCommand } from '@/commands/dash'
 import { loadCommands } from '@/commands/update'
 
 const program = new Command()
@@ -11,5 +12,6 @@ program
   .version('1.0.0')
 
 loadCommands(program)
+loadDashCommand(program)
 
 program.parse(process.argv)
