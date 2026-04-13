@@ -57,7 +57,7 @@ async function updateToNextMinor(
   if (!nextMinor) {
     log.info(
       color.dim(
-        `${color.bold(packageName)} v${currentVersion} — no newer minor version available`
+        `${color.bold(packageName)} v${currentVersion} - no newer minor version available`
       )
     )
     return
@@ -131,7 +131,7 @@ export function loadCommands(program: Command) {
       if (installedFrameworkPackages.length > 0) {
         log.info(
           color.cyan(
-            `Detected ${installedFrameworkPackages.map((p) => color.bold(p)).join(', ')} — checking for minor updates`
+            `Detected ${installedFrameworkPackages.map((p) => color.bold(p)).join(', ')} - checking for minor updates`
           )
         )
 
@@ -183,7 +183,7 @@ export function loadCommands(program: Command) {
       if (biomeWasUpdated) {
         log.info(
           color.cyan(
-            `Biome updated from v${biomeVersionBefore} to v${biomeVersionAfter} — applying new formatting rules`
+            `Biome updated from v${biomeVersionBefore} to v${biomeVersionAfter} - applying new formatting rules`
           )
         )
 

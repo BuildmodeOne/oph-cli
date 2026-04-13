@@ -67,13 +67,13 @@ function isBinaryPath(filePath: string): boolean {
     'yarn.lock',
     'package-lock.json',
   ])
-  if (knownBinaryFiles.has(base)) return false // still text, just skip for safety? No — these are text, keep them
+  if (knownBinaryFiles.has(base)) return false // still text, just skip for safety? No - these are text, keep them
 
   return false
 }
 
 function hasBinaryContent(buffer: Buffer): boolean {
-  // Scan the first 8 KB for null bytes — a strong indicator of binary content
+  // Scan the first 8 KB for null bytes - a strong indicator of binary content
   const sampleSize = Math.min(buffer.length, 8192)
   for (let i = 0; i < sampleSize; i++) {
     if (buffer[i] === 0) return true
@@ -147,7 +147,7 @@ export function loadDashCommand(program: Command) {
           color.dim(`Using .gitignore from ${color.bold(gitignorePath)}`)
         )
       } else {
-        log.warn(color.yellow('No .gitignore found — scanning all files'))
+        log.warn(color.yellow('No .gitignore found - scanning all files'))
       }
 
       if (options.dryRun) {
@@ -223,7 +223,7 @@ export function loadDashCommand(program: Command) {
       )
 
       if (changed === 0) {
-        outro(color.dim('No em dashes found — nothing to do.'))
+        outro(color.dim('No em dashes found - nothing to do.'))
       } else if (options.dryRun) {
         outro(
           color.yellow(
