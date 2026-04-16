@@ -66,7 +66,7 @@ async function updateToNextMinor(
   const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : ''
 
   await execAsync(
-    `${pm} add ${devFlag} ${packageName}@${nextMinor}`
+    `${pm} add ${devFlag} ${packageName}@^${nextMinor}`
       .replace(/\s+/g, ' ')
       .trim(),
     `Updating ${packageName} from v${currentVersion} to v${nextMinor}`,
