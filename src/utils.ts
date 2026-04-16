@@ -158,3 +158,41 @@ export async function getNextMinorVersion(
     return null
   }
 }
+
+export async function getNextPatchVersion(
+  packageName: string,
+  currentVersion: string
+): Promise<string | null> {
+  const { major, minor, patch } = parseVersion(currentVersion)
+
+  try {
+    const { stdout } = await execAsyncUtil(
+      `npm view ${packageName} versions --json`
+    )
+    const versions = JSON.parse(stdout) as string[]
+
+    const candidates = versions
+      .filter((v) => {
+        const parsed = parseVersion(v)
+        return (
+          parsed.major === major &&
+          parsed.minor === minor &&
+          parsed.patch > patch &&
+          !v.includes('-')
+        )
+      })
+      .sort((a, b) => {
+        const pa = parseVersion(a)
+        const pb = parseVersion(b)
+        return pa.patch - pb.patch
+      })
+
+    if (candidates.length === 0) {
+      return null
+    }
+
+    return candidates[candidates.length - 1]
+  } catch {
+    return null
+  }
+}

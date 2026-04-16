@@ -7,6 +7,7 @@ import {
   execAsync,
   getInstalledVersion,
   getNextMinorVersion,
+  getNextPatchVersion,
   isBranchUpToDate,
   isDevDependency,
   isGitRepo,
@@ -55,10 +56,26 @@ async function updateToNextMinor(
   const nextMinor = await getNextMinorVersion(packageName, currentVersion)
 
   if (!nextMinor) {
-    log.info(
-      color.dim(
-        `${color.bold(packageName)} v${currentVersion} - no newer minor version available`
+    const nextPatch = await getNextPatchVersion(packageName, currentVersion)
+
+    if (!nextPatch) {
+      log.info(
+        color.dim(
+          `${color.bold(packageName)} v${currentVersion} - already on the latest version`
+        )
       )
+      return
+    }
+
+    const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : ''
+
+    await execAsync(
+      `${pm} add ${devFlag} ${packageName}@^${nextPatch}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+      `Updating ${packageName} from v${currentVersion} to v${nextPatch}`,
+      `Failed to update ${packageName} to v${nextPatch}`,
+      `Updated ${packageName} from v${currentVersion} to v${nextPatch}`
     )
     return
   }
