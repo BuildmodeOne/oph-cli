@@ -1,17 +1,14 @@
-import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spinner } from '@clack/prompts'
-
-const USE_SHELL = process.platform === 'win32'
+import crossSpawn from 'cross-spawn'
 
 function runCmd(
   cmd: string,
   args: string[]
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
-      shell: USE_SHELL,
+    const child = crossSpawn(cmd, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
@@ -81,10 +78,6 @@ export async function isBranchUpToDate(): Promise<{
 }
 
 /**
- * Run a command and display a spinner. `cmd` and `args` are always kept
- * separate — shell metacharacters in arguments cannot be injected as
- * additional commands on Unix, and are unlikely to cause issues on Windows
- * given the restricted set of values this CLI ever passes.
  */
 export async function execAsync(
   cmd: string,
