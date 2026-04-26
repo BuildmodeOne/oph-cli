@@ -27,14 +27,14 @@ function detectPackageManager(): PackageManager {
     return 'bun'
   }
 
-  if (
-    existsSync(resolve(cwd, 'package.json')) ||
-    existsSync(resolve(cwd, 'pnpm-lock.yaml'))
-  ) {
+  if (existsSync(resolve(cwd, 'pnpm-lock.yaml'))) {
     return 'pnpm'
   }
 
-  throw new Error('Unsupported package manager')
+  throw new Error(
+    'Could not detect a supported package manager. ' +
+      'Expected a pnpm-lock.yaml (pnpm) or bun.lock / bun.lockb (bun) in the current directory.'
+  )
 }
 
 async function updateToNextMinor(
@@ -53,6 +53,9 @@ async function updateToNextMinor(
     return
   }
 
+  const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : undefined
+  const devArgs = devFlag ? [devFlag] : []
+
   const nextMinor = await getNextMinorVersion(packageName, currentVersion)
 
   if (!nextMinor) {
@@ -67,12 +70,9 @@ async function updateToNextMinor(
       return
     }
 
-    const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : ''
-
     await execAsync(
-      `${pm} add ${devFlag} ${packageName}@^${nextPatch}`
-        .replace(/\s+/g, ' ')
-        .trim(),
+      pm,
+      ['add', ...devArgs, `${packageName}@^${nextPatch}`],
       `Updating ${packageName} from v${currentVersion} to v${nextPatch}`,
       `Failed to update ${packageName} to v${nextPatch}`,
       `Updated ${packageName} from v${currentVersion} to v${nextPatch}`
@@ -80,12 +80,9 @@ async function updateToNextMinor(
     return
   }
 
-  const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : ''
-
   await execAsync(
-    `${pm} add ${devFlag} ${packageName}@^${nextMinor}`
-      .replace(/\s+/g, ' ')
-      .trim(),
+    pm,
+    ['add', ...devArgs, `${packageName}@^${nextMinor}`],
     `Updating ${packageName} from v${currentVersion} to v${nextMinor}`,
     `Failed to update ${packageName} to v${nextMinor}`,
     `Updated ${packageName} from v${currentVersion} to v${nextMinor}`
@@ -100,7 +97,14 @@ export function loadCommands(program: Command) {
     .action(async (options: { force: boolean }) => {
       console.log()
 
-      const pm = detectPackageManager()
+      let pm: PackageManager
+      try {
+        pm = detectPackageManager()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        log.error(color.red(message))
+        process.exit(1)
+      }
 
       intro(color.inverse(` Opheys CLI - Update Project Dependencies (${pm}) `))
 
@@ -122,9 +126,9 @@ export function loadCommands(program: Command) {
       }
 
       if (pm === 'pnpm') {
-        // use latest corepack
         await execAsync(
-          'corepack use pnpm@latest',
+          'corepack',
+          ['use', 'pnpm@latest'],
           'Updating pnpm',
           'Failed to update pnpm',
           'Updated pnpm successfully'
@@ -132,7 +136,8 @@ export function loadCommands(program: Command) {
       }
 
       await execAsync(
-        `${pm} update`,
+        pm,
+        ['update'],
         'Updating dependencies',
         'Failed to update dependencies',
         'Updated dependencies successfully'
@@ -163,20 +168,22 @@ export function loadCommands(program: Command) {
         const execPrefix = pm === 'bun' ? 'bunx' : 'pnpx'
 
         await execAsync(
-          `${execPrefix} @tailwindcss/upgrade --force`,
+          execPrefix,
+          ['@tailwindcss/upgrade', '--force'],
           'Upgrading Tailwind CSS',
           'Failed to upgrade Tailwind CSS',
           'Upgraded Tailwind CSS successfully'
         )
       }
 
-      const addExactFlag =
-        pm === 'bun' ? '--dev --exact' : '--save-dev --save-exact'
+      const addExactArgs =
+        pm === 'bun' ? ['--dev', '--exact'] : ['--save-dev', '--save-exact']
 
       const biomeVersionBefore = await getInstalledVersion('@biomejs/biome')
 
       await execAsync(
-        `${pm} add ${addExactFlag} @biomejs/biome@latest`,
+        pm,
+        ['add', ...addExactArgs, '@biomejs/biome@latest'],
         'Updating Biome',
         'Failed to update Biome',
         'Updated Biome successfully'
@@ -188,10 +195,12 @@ export function loadCommands(program: Command) {
         biomeVersionAfter !== null &&
         biomeVersionBefore !== biomeVersionAfter
 
-      const execPrefix = pm === 'bun' ? 'bunx' : 'pnpm exec'
+      const biomeCmd = pm === 'bun' ? 'bunx' : 'pnpm'
+      const biomeBaseArgs = pm === 'bun' ? [] : ['exec']
 
       await execAsync(
-        `${execPrefix} biome migrate --write`,
+        biomeCmd,
+        [...biomeBaseArgs, 'biome', 'migrate', '--write'],
         'Updating Biome configuration',
         'Failed to update Biome configuration',
         'Updated Biome configuration successfully'
@@ -205,12 +214,21 @@ export function loadCommands(program: Command) {
         )
 
         await execAsync(
-          `${execPrefix} biome check --write .`,
+          biomeCmd,
+          [...biomeBaseArgs, 'biome', 'check', '--write', '.'],
           'Applying Biome formatting and lint fixes',
           'Failed to apply Biome formatting and lint fixes',
           'Applied Biome formatting and lint fixes successfully'
         )
       }
+
+      await execAsync(
+        pm,
+        ['audit'],
+        'Auditing for known vulnerabilities',
+        'Vulnerability audit found issues — review the output above',
+        'Vulnerability audit passed'
+      )
 
       outro(color.green('Project dependencies updated successfully!'))
     })

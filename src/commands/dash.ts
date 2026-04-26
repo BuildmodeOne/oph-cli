@@ -1,12 +1,11 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import { intro, log, outro, spinner } from '@clack/prompts'
 import type { Command } from 'commander'
 import ignore, { type Ignore } from 'ignore'
 import color from 'picocolors'
 
 // Em dash — (U+2014) and en dash – (U+2013)
-const DASH_REGEX = /[—–]/g
 
 const BINARY_EXTENSIONS = new Set([
   '.png',
@@ -61,7 +60,7 @@ function isBinaryPath(filePath: string): boolean {
   if (BINARY_EXTENSIONS.has(ext)) return true
 
   // Filenames without extension that are known binaries / non-text
-  const base = filePath.slice(filePath.lastIndexOf('/') + 1).toLowerCase()
+  const base = basename(filePath).toLowerCase()
   const knownBinaryFiles = new Set([
     'pnpm-lock.yaml',
     'yarn.lock',
@@ -100,8 +99,11 @@ function walkFiles(
   dir: string,
   cwd: string,
   ig: Ignore,
-  files: string[] = []
+  files: string[] = [],
+  depth = 0,
+  maxDepth = 50
 ): string[] {
+  if (depth > maxDepth) return files
   let entries: import('node:fs').Dirent[]
 
   try {
@@ -117,7 +119,7 @@ function walkFiles(
     if (entry.isDirectory()) {
       // Check directory with and without trailing slash
       if (ig.ignores(relPath) || ig.ignores(`${relPath}/`)) continue
-      walkFiles(fullPath, cwd, ig, files)
+      walkFiles(fullPath, cwd, ig, files, depth + 1, maxDepth)
     } else if (entry.isFile()) {
       if (ig.ignores(relPath)) continue
       files.push(fullPath)
@@ -189,12 +191,9 @@ export function loadDashCommand(program: Command) {
 
         const original = buffer.toString('utf-8')
 
-        if (!DASH_REGEX.test(original)) continue
+        if (!/[—–]/.test(original)) continue
 
-        // Reset regex lastIndex after .test()
-        DASH_REGEX.lastIndex = 0
-
-        const replaced = original.replace(DASH_REGEX, '-')
+        const replaced = original.replace(/[—–]/g, '-')
         const relPath = relative(cwd, filePath).replace(/\\/g, '/')
 
         if (!options.dryRun) {
