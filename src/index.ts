@@ -1,7 +1,10 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { Command } from 'commander'
 import { loadDashCommand } from '@/commands/dash'
 import { loadCommands } from '@/commands/update'
+import { loadUpgradeCommand } from '@/commands/upgrade'
 
 const program = new Command()
 program
@@ -9,9 +12,13 @@ program
   .description(
     'A CLI for common tasks related to Opheys IT-Consulting projects'
   )
-  .version('1.0.0')
+  .version(
+    JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf-8'))
+      .version
+  )
 
 loadCommands(program)
+loadUpgradeCommand(program)
 loadDashCommand(program)
 
 program.parse(process.argv)
