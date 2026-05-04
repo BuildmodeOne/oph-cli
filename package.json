@@ -4,6 +4,7 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
+    "prebuild": "node scripts/gen-version.js",
     "build": "tsc && tsc-alias",
     "build:bin": "tsc && tsc-alias && pkg dist/index.js -o bin/opheys",
     "start": "node dist/index.js",

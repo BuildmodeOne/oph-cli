@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { intro, log, outro, spinner } from '@clack/prompts'
 import type { Command } from 'commander'
 import color from 'picocolors'
-import pkgJson from '../../package.json'
+import { VERSION } from '@/version'
 
 const GH_REPO = 'BuildmodeOne/opheys-cli'
 
@@ -115,13 +115,13 @@ export function loadUpgradeCommand(program: Command): void {
       }
 
       const latestVersion = release.tag_name.replace(/^v/, '')
-      if (latestVersion === pkgJson.version) {
-        s.stop(`Already on latest version ${color.green(pkgJson.version)}`)
+      if (latestVersion === VERSION) {
+        s.stop(`Already on latest version ${color.green(VERSION)}`)
         outro('Nothing to do')
         return
       }
       s.stop(
-        `Latest: ${color.green(release.tag_name)}  Current: ${color.dim(pkgJson.version)}`
+        `Latest: ${color.green(release.tag_name)}  Current: ${color.dim(VERSION)}`
       )
 
       const currentBinary = process.execPath

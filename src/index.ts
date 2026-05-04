@@ -3,7 +3,7 @@ import { Command } from 'commander'
 import { loadDashCommand } from '@/commands/dash'
 import { loadCommands } from '@/commands/update'
 import { loadUpgradeCommand } from '@/commands/upgrade'
-import pkgJson from '../package.json'
+import { VERSION } from '@/version'
 
 const program = new Command()
 program
@@ -11,7 +11,7 @@ program
   .description(
     'A CLI for common tasks related to Opheys IT-Consulting projects'
   )
-  .version(pkgJson.version)
+  .version(VERSION)
 
 loadCommands(program)
 loadUpgradeCommand(program)
