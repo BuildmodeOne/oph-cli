@@ -26,13 +26,15 @@ jobs:
 
       - run: pnpm build
 
-      - name: Build binaries
+      - name: Bundle and build binaries
         run: |
+          pnpm exec esbuild dist/index.js --bundle --platform=node --target=node22 --outfile=dist/bundle.js
           mkdir -p bin
-          pnpm exec pkg dist/index.js -t node22-linux-x64    -o bin/opheys-linux-x64
-          pnpm exec pkg dist/index.js -t node22-linux-arm64  -o bin/opheys-linux-arm64
-          pnpm exec pkg dist/index.js -t node22-macos-arm64  -o bin/opheys-darwin-arm64
-          pnpm exec pkg dist/index.js -t node22-win-x64      -o bin/opheys-win32-x64.exe
+          PKG_FLAGS="--no-bytecode --public-packages \"*\" --public"
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-x64    -o bin/opheys-linux-x64
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-arm64  -o bin/opheys-linux-arm64
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-macos-arm64  -o bin/opheys-darwin-arm64
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-win-x64      -o bin/opheys-win32-x64.exe
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
