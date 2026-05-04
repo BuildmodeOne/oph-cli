@@ -127,7 +127,7 @@ export function loadUpgradeCommand(program: Command): void {
       const currentBinary = process.execPath
       if (/[/\\]node(\.exe)?$/.test(currentBinary)) {
         log.warn(
-          'Not running as a prebuilt binary — upgrade only works with the installed binary'
+          'Not running as a prebuilt binary - upgrade only works with the installed binary'
         )
         outro(color.yellow('Skipped'))
         return

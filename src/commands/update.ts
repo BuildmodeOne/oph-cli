@@ -226,7 +226,7 @@ export function loadCommands(program: Command) {
         pm,
         ['audit'],
         'Auditing for known vulnerabilities',
-        'Vulnerability audit found issues — review the output above',
+        'Vulnerability audit found issues - review the output above',
         'Vulnerability audit passed'
       )
 
