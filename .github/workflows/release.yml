@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Build binaries
+        run: |
+          mkdir -p bin
+          pnpm exec pkg dist/index.js -t node22-linux-x64    -o bin/opheys-linux-x64
+          pnpm exec pkg dist/index.js -t node22-linux-arm64  -o bin/opheys-linux-arm64
+          pnpm exec pkg dist/index.js -t node22-macos-arm64  -o bin/opheys-darwin-arm64
+          pnpm exec pkg dist/index.js -t node22-win-x64      -o bin/opheys-win32-x64.exe
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/opheys-linux-x64
+            bin/opheys-linux-arm64
+            bin/opheys-darwin-arm64
+            bin/opheys-win32-x64.exe

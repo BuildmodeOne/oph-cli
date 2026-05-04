@@ -5,8 +5,16 @@
 pnpm check              # TS + Biome checks
 pnpm check:fix          # Check + auto-fix
 pnpm check:fix --unsafe # Check + auto-fix incl. unsafe (preferred)
+pnpm build:bin          # Build standalone binary for current platform → bin/opheys
 ```
 Use head/tail to limit output tokens.
+
+## Release
+Bump `version` in `package.json`, then:
+```bash
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+GitHub Actions builds all 4 platform binaries and attaches them to the release automatically.
 
 ## Rules
 
