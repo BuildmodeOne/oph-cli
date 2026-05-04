@@ -106,7 +106,7 @@ export function loadCommands(program: Command) {
         process.exit(1)
       }
 
-      intro(color.inverse(` Opheys CLI - Update Project Dependencies (${pm}) `))
+      intro(color.inverse(` oph - Update Project Dependencies (${pm}) `))
 
       if (isGitRepo()) {
         if (options.force) {

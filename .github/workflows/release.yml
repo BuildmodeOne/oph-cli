@@ -31,16 +31,16 @@ jobs:
           pnpm exec esbuild dist/index.js --bundle --platform=node --target=node22 --outfile=dist/bundle.js
           mkdir -p bin
           PKG_FLAGS="--no-bytecode --public-packages \"*\" --public"
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-x64    -o bin/opheys-linux-x64
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-arm64  -o bin/opheys-linux-arm64
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-macos-arm64  -o bin/opheys-darwin-arm64
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-win-x64      -o bin/opheys-win32-x64.exe
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-x64    -o bin/oph-linux-x64
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-arm64  -o bin/oph-linux-arm64
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-macos-arm64  -o bin/oph-darwin-arm64
+          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-win-x64      -o bin/oph-win32-x64.exe
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/opheys-linux-x64
-            bin/opheys-linux-arm64
-            bin/opheys-darwin-arm64
-            bin/opheys-win32-x64.exe
+            bin/oph-linux-x64
+            bin/oph-linux-arm64
+            bin/oph-darwin-arm64
+            bin/oph-win32-x64.exe

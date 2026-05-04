@@ -5,7 +5,7 @@
 pnpm check              # TS + Biome checks
 pnpm check:fix          # Check + auto-fix
 pnpm check:fix --unsafe # Check + auto-fix incl. unsafe (preferred)
-pnpm build:bin          # Build standalone binary for current platform → bin/opheys
+pnpm build:bin          # Build standalone binary for current platform → bin/oph
 ```
 Use head/tail to limit output tokens.
 

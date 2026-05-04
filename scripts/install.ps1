@@ -8,14 +8,14 @@ $ErrorActionPreference = "Stop"
 
 $Arch = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').PROCESSOR_ARCHITECTURE
 if ($Arch -ne "AMD64") {
-  Write-Output "Install Failed: opheys-cli only supports x64 Windows."
+  Write-Output "Install Failed: oph only supports x64 Windows."
   exit 1
 }
 
-$GH_REPO = "BuildmodeOne/opheys-cli"
-$BinName = "opheys-win32-x64.exe"
-$InstallDir = "$Home\.opheys\bin"
-$ExePath = "$InstallDir\opheys.exe"
+$GH_REPO = "BuildmodeOne/oph-cli"
+$BinName = "oph-win32-x64.exe"
+$InstallDir = "$Home\.oph\bin"
+$ExePath = "$InstallDir\oph.exe"
 
 $BaseURL = "https://github.com/$GH_REPO/releases"
 $URL = if ($Version -eq "latest") {
@@ -27,7 +27,7 @@ $URL = if ($Version -eq "latest") {
 
 $null = New-Item -ItemType Directory -Force -Path $InstallDir
 
-Write-Output "Downloading opheys from $URL..."
+Write-Output "Downloading oph from $URL..."
 
 try {
   curl.exe "-#SfLo" "$ExePath" "$URL"
@@ -43,7 +43,7 @@ if (!(Test-Path $ExePath)) {
 }
 
 $Version = & "$ExePath" --version 2>&1
-Write-Output "opheys $Version installed to $ExePath"
+Write-Output "oph $Version installed to $ExePath"
 
 # PATH helpers — write directly to registry to avoid variable expansion issues
 function Publish-Env {
@@ -88,4 +88,4 @@ if (-not $NoPathUpdate) {
 }
 
 Write-Output ""
-Write-Output "Restart your terminal, then run: opheys --help"
+Write-Output "Restart your terminal, then run: oph --help"

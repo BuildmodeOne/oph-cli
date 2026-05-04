@@ -13,7 +13,7 @@ import type { Command } from 'commander'
 import color from 'picocolors'
 import { VERSION } from '@/version'
 
-const GH_REPO = 'BuildmodeOne/opheys-cli'
+const GH_REPO = 'BuildmodeOne/oph-cli'
 
 interface GhRelease {
   tag_name: string
@@ -22,7 +22,7 @@ interface GhRelease {
 
 function getAssetName(): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
-  return `opheys-${process.platform}-${process.arch}${ext}`
+  return `oph-${process.platform}-${process.arch}${ext}`
 }
 
 function fetchJson<T>(url: string): Promise<T> {
@@ -31,7 +31,7 @@ function fetchJson<T>(url: string): Promise<T> {
       url,
       {
         headers: {
-          'User-Agent': 'opheys-cli',
+          'User-Agent': 'oph',
           Accept: 'application/vnd.github+json',
         },
       },
@@ -61,7 +61,7 @@ function download(url: string, dest: string): Promise<void> {
     const file = createWriteStream(dest)
 
     function request(u: string): void {
-      get(u, { headers: { 'User-Agent': 'opheys-cli' } }, (res) => {
+        get(u, { headers: { 'User-Agent': 'oph' } }, (res) => {
         if (
           (res.statusCode === 301 || res.statusCode === 302) &&
           res.headers.location
@@ -98,7 +98,7 @@ export function loadUpgradeCommand(program: Command): void {
     .description('Self-upgrade the CLI to the latest release from GitHub')
     .action(async () => {
       console.log()
-      intro(color.inverse(' Opheys CLI - Upgrade '))
+      intro(color.inverse(' oph - Upgrade '))
 
       const s = spinner()
       s.start('Checking latest release…')
@@ -154,7 +154,7 @@ export function loadUpgradeCommand(program: Command): void {
 
       log.step(`Replacing ${color.dim(currentBinary)}…`)
       if (process.platform === 'win32') {
-        const bat = join(tmpdir(), 'opheys-upgrade.bat')
+        const bat = join(tmpdir(), 'oph-upgrade.bat')
         writeFileSync(
           bat,
           [

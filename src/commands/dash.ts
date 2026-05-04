@@ -138,7 +138,7 @@ export function loadDashCommand(program: Command) {
     .option('--dry-run', 'Preview changes without writing to disk', false)
     .action(async (options: { dryRun: boolean }) => {
       console.log()
-      intro(color.inverse(' Opheys CLI - Dash Replacer '))
+      intro(color.inverse(' oph - Dash Replacer '))
 
       const cwd = process.cwd()
       const ig = buildIgnore(cwd)

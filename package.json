@@ -1,18 +1,18 @@
 {
-  "name": "opheys-cli",
+  "name": "oph",
   "version": "2.0.2",
   "description": "",
   "main": "dist/index.js",
   "scripts": {
     "prebuild": "node scripts/gen-version.js",
     "build": "tsc && tsc-alias",
-    "build:bin": "node scripts/gen-version.js && tsc && tsc-alias && esbuild dist/index.js --bundle --platform=node --target=node22 --outfile=dist/bundle.js && pkg dist/bundle.js -t node22 --no-bytecode --public-packages \"*\" --public -o bin/opheys",
+    "build:bin": "node scripts/gen-version.js && tsc && tsc-alias && esbuild dist/index.js --bundle --platform=node --target=node22 --outfile=dist/bundle.js && pkg dist/bundle.js -t node22 --no-bytecode --public-packages \"*\" --public -o bin/oph",
     "start": "node dist/index.js",
     "check": "tsc --noEmit && biome check",
     "check:fix": "tsc --noEmit && biome check --fix"
   },
   "bin": {
-    "opheys": "dist/index.js"
+    "oph": "dist/index.js"
   },
   "keywords": [],
   "author": "Philipp Opheys",
