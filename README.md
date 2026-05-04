@@ -4,7 +4,19 @@ CLI for common tasks for my projects.
 
 ## Installation
 
-Download the binary for your platform from the [latest release](https://github.com/BuildmodeOne/opheys-cli/releases/latest) and place it on your `PATH`.
+**macOS / Linux**
+```sh
+curl -fsSL https://raw.githubusercontent.com/BuildmodeOne/opheys-cli/master/scripts/install.sh | bash
+```
+
+**Windows (PowerShell)**
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/BuildmodeOne/opheys-cli/master/scripts/install.ps1 | iex"
+```
+
+Both scripts download the correct binary, place it in `~/.opheys/bin`, and add it to your `PATH`.
+
+Or download manually from the [latest release](https://github.com/BuildmodeOne/opheys-cli/releases/latest):
 
 | Platform | Binary |
 |---|---|
