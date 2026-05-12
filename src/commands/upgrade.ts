@@ -61,7 +61,7 @@ function download(url: string, dest: string): Promise<void> {
     const file = createWriteStream(dest)
 
     function request(u: string): void {
-        get(u, { headers: { 'User-Agent': 'oph' } }, (res) => {
+      get(u, { headers: { 'User-Agent': 'oph' } }, (res) => {
         if (
           (res.statusCode === 301 || res.statusCode === 302) &&
           res.headers.location

@@ -1,13 +1,17 @@
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { intro, log, outro } from '@clack/prompts'
+import { intro, log, outro, spinner } from '@clack/prompts'
 import type { Command } from 'commander'
 import color from 'picocolors'
+import { migrateWorkspaceForPnpmV11 } from '@/pnpm-workspace'
 import {
   execAsync,
   getInstalledVersion,
+  getLatestVersion,
+  getMajor,
   getNextMinorVersion,
   getNextPatchVersion,
+  getPnpmVersion,
   isBranchUpToDate,
   isDevDependency,
   isGitRepo,
@@ -125,7 +129,70 @@ export function loadCommands(program: Command) {
         }
       }
 
+      let pnpmCrossedV11 = false
+
       if (pm === 'pnpm') {
+        const currentPnpm = await getPnpmVersion()
+        const latestPnpm = await getLatestVersion('pnpm')
+        pnpmCrossedV11 =
+          currentPnpm !== null &&
+          latestPnpm !== null &&
+          getMajor(currentPnpm) < 11 &&
+          getMajor(latestPnpm) >= 11
+
+        if (currentPnpm && latestPnpm) {
+          log.info(
+            color.dim(`pnpm: current v${currentPnpm}, latest v${latestPnpm}`)
+          )
+        } else {
+          log.warn(
+            color.yellow(
+              `Could not determine pnpm versions (current=${currentPnpm ?? 'null'}, latest=${latestPnpm ?? 'null'}) - skipping v11 migration check`
+            )
+          )
+        }
+
+        if (pnpmCrossedV11) {
+          log.info(
+            color.cyan(
+              `pnpm v${currentPnpm} → v${latestPnpm} - migrating pnpm-workspace.yaml to allowBuilds`
+            )
+          )
+          try {
+            const { migrated, reason } = migrateWorkspaceForPnpmV11()
+            if (migrated) {
+              log.success(
+                color.green('Migrated pnpm-workspace.yaml to allowBuilds')
+              )
+            } else {
+              log.info(color.dim(`pnpm-workspace.yaml: ${reason}`))
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            log.error(
+              color.red(`Failed to migrate pnpm-workspace.yaml: ${message}`)
+            )
+            outro(color.red('Update aborted'))
+            process.exit(1)
+          }
+
+          const nodeModulesPath = resolve(process.cwd(), 'node_modules')
+          if (existsSync(nodeModulesPath)) {
+            const s = spinner()
+            s.start('Removing node_modules for pnpm v11 reinstall')
+            try {
+              rmSync(nodeModulesPath, { recursive: true, force: true })
+              s.stop('Removed node_modules')
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err)
+              s.stop('Failed to remove node_modules')
+              log.error(color.red(message))
+              outro(color.red('Update aborted'))
+              process.exit(1)
+            }
+          }
+        }
+
         await execAsync(
           'corepack',
           ['use', 'pnpm@latest'],
@@ -133,6 +200,16 @@ export function loadCommands(program: Command) {
           'Failed to update pnpm',
           'Updated pnpm successfully'
         )
+
+        if (pnpmCrossedV11) {
+          await execAsync(
+            'pnpm',
+            ['install'],
+            'Reinstalling dependencies for pnpm v11',
+            'Failed to reinstall dependencies',
+            'Reinstalled dependencies successfully'
+          )
+        }
       }
 
       await execAsync(

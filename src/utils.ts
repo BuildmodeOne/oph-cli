@@ -103,6 +103,27 @@ export async function execAsync(
 interface PackageJson {
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
+  packageManager?: string
+}
+
+export function readPackageManagerField(): string | null {
+  try {
+    const pkg = readProjectPackageJson()
+    return pkg.packageManager ?? null
+  } catch {
+    return null
+  }
+}
+
+export function parsePackageManagerVersion(
+  field: string | null,
+  expectedName: string
+): string | null {
+  if (!field) return null
+  const match = field.match(/^([^@]+)@([^+\s]+)/)
+  if (!match) return null
+  if (match[1] !== expectedName) return null
+  return match[2]
 }
 
 export function readProjectPackageJson(): PackageJson {
@@ -214,6 +235,38 @@ export async function getNextMinorVersion(
 
   if (candidates.length === 0) return null
   return candidates[candidates.length - 1]
+}
+
+export async function getLatestVersion(
+  packageName: string
+): Promise<string | null> {
+  try {
+    const { stdout } = await runCmd('npm', ['view', packageName, 'version'])
+    const v = stdout.trim()
+    return v.length > 0 ? v : null
+  } catch {
+    return null
+  }
+}
+
+export async function getPnpmVersion(): Promise<string | null> {
+  const fromField = parsePackageManagerVersion(
+    readPackageManagerField(),
+    'pnpm'
+  )
+  if (fromField) return fromField
+
+  try {
+    const { stdout } = await runCmd('pnpm', ['--version'])
+    const v = stdout.trim()
+    return v.length > 0 ? v : null
+  } catch {
+    return null
+  }
+}
+
+export function getMajor(version: string): number {
+  return parseVersion(version).major
 }
 
 export async function getNextPatchVersion(

@@ -8,9 +8,7 @@ import { VERSION } from '@/version'
 const program = new Command()
 program
   .name('oph')
-  .description(
-    'A general purpose CLI by Philipp Opheys'
-  )
+  .description('A general purpose CLI by Philipp Opheys')
   .version(VERSION)
 
 loadCommands(program)
