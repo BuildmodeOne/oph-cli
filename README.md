@@ -39,6 +39,16 @@ oph --help
 oph <command> --help
 ```
 
+## Release
+
+Bump `version` in `package.json`, then:
+
+```sh
+git tag vX.Y.Z && git push origin vX.Y.Z
+```
+
+GitHub Actions builds all 4 platform binaries and attaches them to the release automatically.
+
 ## License
 
 ISC
