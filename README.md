@@ -51,5 +51,5 @@ GitHub Actions builds all 4 platform binaries and attaches them to the release a
 
 ## License
 
-ISC
+[PolyForm Noncommercial 1.0.0](LICENSE) — free for noncommercial use, attribution required.
 
