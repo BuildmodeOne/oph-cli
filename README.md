@@ -25,6 +25,12 @@ Or download manually from the [latest release](https://github.com/BuildmodeOne/o
 | macOS arm64 | `oph-darwin-arm64` |
 | Windows x64 | `oph-win32-x64.exe` |
 
+## Development
+
+```sh
+cargo build --release
+./target/release/oph --help
+```
 
 ## Commands
 
@@ -42,4 +48,3 @@ oph <command> --help
 ## License
 
 ISC
-

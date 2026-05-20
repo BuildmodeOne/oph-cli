@@ -45,7 +45,7 @@ if (!(Test-Path $ExePath)) {
 $Version = & "$ExePath" --version 2>&1
 Write-Output "oph $Version installed to $ExePath"
 
-# PATH helpers — write directly to registry to avoid variable expansion issues
+# PATH helpers - write directly to registry to avoid variable expansion issues
 function Publish-Env {
   if (-not ("Win32.NativeMethods" -as [Type])) {
     Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition @"

@@ -7,34 +7,76 @@ on:
 
 jobs:
   release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: oph-linux-x64
+            cross: false
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            asset: oph-linux-arm64
+            cross: true
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: oph-darwin-arm64
+            cross: false
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: oph-win32-x64.exe
+            cross: false
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux cross linker
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Stage release asset
+        shell: bash
+        run: |
+          mkdir -p bin
+          BIN="target/${{ matrix.target }}/release/oph"
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
+            BIN="${BIN}.exe"
+          fi
+          cp "$BIN" "bin/${{ matrix.asset }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: bin/${{ matrix.asset }}
+
+  publish:
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: actions/download-artifact@v4
         with:
-          run_install: false
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm build
-
-      - name: Bundle and build binaries
-        run: |
-          pnpm exec esbuild dist/index.js --bundle --platform=node --target=node22 --outfile=dist/bundle.js
-          mkdir -p bin
-          PKG_FLAGS="--no-bytecode --public-packages \"*\" --public"
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-x64    -o bin/oph-linux-x64
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-linux-arm64  -o bin/oph-linux-arm64
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-macos-arm64  -o bin/oph-darwin-arm64
-          pnpm exec pkg dist/bundle.js $PKG_FLAGS -t node22-win-x64      -o bin/oph-win32-x64.exe
+          path: bin
+          merge-multiple: true
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
