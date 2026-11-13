@@ -54,23 +54,53 @@ function parseWorkspace(content: string): ParsedYaml {
     }
 
     if ((LEGACY_LIST_KEYS as readonly string[]).includes(key) && rest === '') {
-      const items: string[] = []
-      let j = i + 1
-      for (; j < lines.length; j++) {
-        const itemMatch = lines[j].match(/^\s+-\s+(.+?)\s*$/)
-        if (!itemMatch) {
-          // allow blank lines inside? stop on any non-list line
-          if (lines[j].trim() === '') continue
-          break
-        }
-        items.push(stripQuotes(itemMatch[1]))
-      }
-      lists[key] = { startLine: i, endLine: j - 1, items }
-      i = j - 1
+      const { items, endLine } = readBlockList(lines, i + 1)
+      lists[key] = { startLine: i, endLine, items }
+      i = endLine
     }
   }
 
   return { lines, lists, fileRef, hasAllowBuilds }
+}
+
+function readBlockList(
+  lines: string[],
+  start: number
+): { items: string[]; endLine: number } {
+  const items: string[] = []
+  let j = start
+  for (; j < lines.length; j++) {
+    const itemMatch = lines[j].match(/^\s+-\s+(.+?)\s*$/)
+    if (!itemMatch) {
+      if (lines[j].trim() === '') continue
+      break
+    }
+    items.push(stripQuotes(itemMatch[1]))
+  }
+  return { items, endLine: j - 1 }
+}
+
+/**
+ * Reads the `packages:` globs (block or flow style). Empty when the file is
+ * missing or only holds settings, i.e. the repo is not a workspace.
+ */
+export function readWorkspacePackageGlobs(root: string): string[] {
+  const wsPath = resolve(root, WORKSPACE_FILE)
+  if (!existsSync(wsPath)) return []
+
+  const lines = readFileSync(wsPath, 'utf-8').split(/\r?\n/)
+  const idx = lines.findIndex((l) => /^packages\s*:/.test(l))
+  if (idx === -1) return []
+
+  const rest = lines[idx].replace(/^packages\s*:/, '').trim()
+  if (rest.startsWith('[')) {
+    return rest
+      .replace(/^\[|\]\s*(#.*)?$/g, '')
+      .split(',')
+      .map(stripQuotes)
+      .filter(Boolean)
+  }
+  return readBlockList(lines, idx + 1).items
 }
 
 function loadFileRefEntries(cwd: string, path: string): string[] {

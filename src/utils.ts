@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { log, spinner } from '@clack/prompts'
 import crossSpawn from 'cross-spawn'
 
@@ -17,10 +17,12 @@ class CommandError extends Error {
 
 function runCmd(
   cmd: string,
-  args: string[]
+  args: string[],
+  cwd?: string
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = crossSpawn(cmd, args, {
+      cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
@@ -48,18 +50,28 @@ function runCmd(
   })
 }
 
-export function isGitRepo(): boolean {
-  return existsSync(resolve(process.cwd(), '.git'))
+export function findUp(start: string, names: string[]): string | null {
+  let dir = resolve(start)
+  while (true) {
+    if (names.some((name) => existsSync(resolve(dir, name)))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
 }
 
-export async function isBranchUpToDate(): Promise<{
+export function isGitRepo(dir: string = process.cwd()): boolean {
+  return findUp(dir, ['.git']) !== null
+}
+
+export async function isBranchUpToDate(dir: string = process.cwd()): Promise<{
   upToDate: boolean
   reason: string
 }> {
   try {
-    await runCmd('git', ['fetch'])
+    await runCmd('git', ['fetch'], dir)
 
-    const { stdout: status } = await runCmd('git', ['status', '-uno'])
+    const { stdout: status } = await runCmd('git', ['status', '-uno'], dir)
     const statusText = status.trim()
 
     if (statusText.includes('Your branch is behind')) {
@@ -103,12 +115,13 @@ export async function execAsync(
   args: string[],
   startMessage: string,
   errorMessage: string,
-  successMessage: string
+  successMessage: string,
+  options: { cwd?: string } = {}
 ): Promise<boolean> {
   const s = spinner()
   s.start(startMessage)
   try {
-    await runCmd(cmd, args)
+    await runCmd(cmd, args, options.cwd)
     s.stop(successMessage)
     return true
   } catch (err) {
@@ -118,15 +131,19 @@ export async function execAsync(
   }
 }
 
-interface PackageJson {
+export interface PackageJson {
+  name?: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   packageManager?: string
+  workspaces?: string[] | { packages?: string[] }
 }
 
-export function readPackageManagerField(): string | null {
+export function readPackageManagerField(
+  dir: string = process.cwd()
+): string | null {
   try {
-    const pkg = readProjectPackageJson()
+    const pkg = readProjectPackageJson(dir)
     return pkg.packageManager ?? null
   } catch {
     return null
@@ -144,8 +161,10 @@ export function parsePackageManagerVersion(
   return match[2]
 }
 
-export function readProjectPackageJson(): PackageJson {
-  const packageJsonPath = resolve(process.cwd(), 'package.json')
+export function readProjectPackageJson(
+  dir: string = process.cwd()
+): PackageJson {
+  const packageJsonPath = resolve(dir, 'package.json')
   try {
     const content = readFileSync(packageJsonPath, 'utf-8')
     return JSON.parse(content) as PackageJson
@@ -183,11 +202,12 @@ function parseVersion(version: string): {
 }
 
 export async function getInstalledVersion(
-  packageName: string
+  packageName: string,
+  dir: string = process.cwd()
 ): Promise<string | null> {
   try {
     const packageJsonPath = resolve(
-      process.cwd(),
+      dir,
       'node_modules',
       packageName,
       'package.json'
@@ -267,15 +287,17 @@ export async function getLatestVersion(
   }
 }
 
-export async function getPnpmVersion(): Promise<string | null> {
+export async function getPnpmVersion(
+  dir: string = process.cwd()
+): Promise<string | null> {
   const fromField = parsePackageManagerVersion(
-    readPackageManagerField(),
+    readPackageManagerField(dir),
     'pnpm'
   )
   if (fromField) return fromField
 
   try {
-    const { stdout } = await runCmd('pnpm', ['--version'])
+    const { stdout } = await runCmd('pnpm', ['--version'], dir)
     const v = stdout.trim()
     return v.length > 0 ? v : null
   } catch {

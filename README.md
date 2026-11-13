@@ -30,7 +30,7 @@ Or download manually from the [latest release](https://github.com/BuildmodeOne/o
 
 | Command | Description |
 |---|---|
-| `oph update` | Update project dependencies (pnpm/bun), Biome, Tailwind, and run audit |
+| `oph update` | Update project dependencies (pnpm/bun), Biome, Tailwind, and run audit. In a workspace it updates the whole monorepo from any directory |
 | `oph upgrade` | Replace the CLI binary with the latest release |
 | `oph dash` | Replace AI em/en dashes with `-` across all non-ignored files |
 

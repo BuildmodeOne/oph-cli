@@ -4,6 +4,7 @@ import { intro, log, outro, spinner } from '@clack/prompts'
 import type { Command } from 'commander'
 import ignore, { type Ignore } from 'ignore'
 import color from 'picocolors'
+import { findUp } from '@/utils'
 
 // Em dash — (U+2014) and en dash – (U+2013)
 
@@ -80,25 +81,30 @@ function hasBinaryContent(buffer: Buffer): boolean {
   return false
 }
 
-function buildIgnore(cwd: string): Ignore {
-  const ig = ignore()
+type IsIgnored = (fullPath: string, isDir: boolean) => boolean
 
-  // Always ignore .git itself
-  ig.add('.git')
+// Each .gitignore matches against paths relative to its own directory
+function buildIgnore(gitignoreDirs: string[]): IsIgnored {
+  const rules: { dir: string; ig: Ignore }[] = gitignoreDirs.map((dir) => {
+    // Always ignore .git and dependency folders, even without a .gitignore
+    const ig = ignore().add(['.git', 'node_modules'])
+    const gitignorePath = resolve(dir, '.gitignore')
+    if (existsSync(gitignorePath)) {
+      ig.add(readFileSync(gitignorePath, 'utf-8'))
+    }
+    return { dir, ig }
+  })
 
-  const gitignorePath = resolve(cwd, '.gitignore')
-  if (existsSync(gitignorePath)) {
-    const content = readFileSync(gitignorePath, 'utf-8')
-    ig.add(content)
-  }
-
-  return ig
+  return (fullPath, isDir) =>
+    rules.some(({ dir, ig }) => {
+      const relPath = relative(dir, fullPath).replace(/\\/g, '/')
+      return ig.ignores(relPath) || (isDir && ig.ignores(`${relPath}/`))
+    })
 }
 
 function walkFiles(
   dir: string,
-  cwd: string,
-  ig: Ignore,
+  isIgnored: IsIgnored,
   files: string[] = [],
   depth = 0,
   maxDepth = 50
@@ -114,14 +120,12 @@ function walkFiles(
 
   for (const entry of entries) {
     const fullPath = join(dir, entry.name)
-    const relPath = relative(cwd, fullPath).replace(/\\/g, '/')
 
     if (entry.isDirectory()) {
-      // Check directory with and without trailing slash
-      if (ig.ignores(relPath) || ig.ignores(`${relPath}/`)) continue
-      walkFiles(fullPath, cwd, ig, files, depth + 1, maxDepth)
+      if (isIgnored(fullPath, true)) continue
+      walkFiles(fullPath, isIgnored, files, depth + 1, maxDepth)
     } else if (entry.isFile()) {
-      if (ig.ignores(relPath)) continue
+      if (isIgnored(fullPath, false)) continue
       files.push(fullPath)
     }
   }
@@ -141,13 +145,17 @@ export function loadDashCommand(program: Command) {
       intro(color.inverse(' oph - Dash Replacer '))
 
       const cwd = process.cwd()
-      const ig = buildIgnore(cwd)
+      const gitRoot = findUp(cwd, ['.git'])
+      const gitignoreDirs = [...new Set([gitRoot ?? cwd, cwd])]
+      const isIgnored = buildIgnore(gitignoreDirs)
 
-      const gitignorePath = resolve(cwd, '.gitignore')
-      if (existsSync(gitignorePath)) {
-        log.info(
-          color.dim(`Using .gitignore from ${color.bold(gitignorePath)}`)
-        )
+      const gitignorePaths = gitignoreDirs
+        .map((dir) => resolve(dir, '.gitignore'))
+        .filter((p) => existsSync(p))
+      if (gitignorePaths.length > 0) {
+        for (const p of gitignorePaths) {
+          log.info(color.dim(`Using .gitignore from ${color.bold(p)}`))
+        }
       } else {
         log.warn(color.yellow('No .gitignore found - scanning all files'))
       }
@@ -159,7 +167,7 @@ export function loadDashCommand(program: Command) {
       const s = spinner()
       s.start('Scanning files…')
 
-      const allFiles = walkFiles(cwd, cwd, ig)
+      const allFiles = walkFiles(cwd, isIgnored)
 
       s.stop(`Found ${color.bold(String(allFiles.length))} file(s) to inspect`)
 

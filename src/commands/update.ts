@@ -4,6 +4,7 @@ import { intro, log, outro, spinner } from '@clack/prompts'
 import type { Command } from 'commander'
 import color from 'picocolors'
 import { migrateWorkspaceForPnpmV11 } from '@/pnpm-workspace'
+import { type Project, resolveProject, type WorkspacePackage } from '@/project'
 import {
   execAsync,
   getInstalledVersion,
@@ -16,80 +17,92 @@ import {
   isDevDependency,
   isGitRepo,
   isPackageInstalled,
-  readProjectPackageJson,
 } from '@/utils'
 
-type PackageManager = 'bun' | 'pnpm'
+const UNMANAGED_SPEC = /^(catalog|workspace):/
 
-function detectPackageManager(): PackageManager {
-  const cwd = process.cwd()
+function inTarget(project: Project, target: WorkspacePackage): string {
+  return project.isMonorepo ? ` in ${color.bold(target.name)}` : ''
+}
 
-  if (
-    existsSync(resolve(cwd, 'bun.lock')) ||
-    existsSync(resolve(cwd, 'bun.lockb'))
-  ) {
-    return 'bun'
-  }
+// pnpm refuses to add to a workspace root without -w (ERR_PNPM_ADDING_TO_ROOT)
+function rootFlag(project: Project, target: WorkspacePackage): string[] {
+  return project.pm === 'pnpm' && project.isMonorepo && target.isRoot
+    ? ['-w']
+    : []
+}
 
-  if (existsSync(resolve(cwd, 'pnpm-lock.yaml'))) {
-    return 'pnpm'
-  }
-
-  throw new Error(
-    'Could not detect a supported package manager. ' +
-      'Expected a pnpm-lock.yaml (pnpm) or bun.lock / bun.lockb (bun) in the current directory.'
+// bun hoists workspace deps to the root node_modules
+async function getTargetVersion(
+  project: Project,
+  target: WorkspacePackage,
+  packageName: string
+): Promise<string | null> {
+  return (
+    (await getInstalledVersion(packageName, target.dir)) ??
+    (target.isRoot ? null : getInstalledVersion(packageName, project.root))
   )
 }
 
 async function updateToNextMinor(
-  pm: PackageManager,
-  packageName: string,
-  isDev: boolean
+  project: Project,
+  target: WorkspacePackage,
+  packageName: string
 ): Promise<void> {
-  const currentVersion = await getInstalledVersion(packageName)
+  const where = inTarget(project, target)
+  const spec =
+    target.pkg.dependencies?.[packageName] ??
+    target.pkg.devDependencies?.[packageName]
 
-  if (!currentVersion) {
-    log.warn(
-      color.yellow(
-        `Could not determine installed version of ${color.bold(packageName)}, skipping minor update`
+  if (spec && UNMANAGED_SPEC.test(spec)) {
+    log.info(
+      color.dim(
+        `${color.bold(packageName)}${where} uses "${spec}" - skipping minor update`
       )
     )
     return
   }
 
-  const devFlag = isDev ? (pm === 'bun' ? '--dev' : '--save-dev') : undefined
-  const devArgs = devFlag ? [devFlag] : []
+  const currentVersion = await getTargetVersion(project, target, packageName)
 
-  const nextMinor = await getNextMinorVersion(packageName, currentVersion)
-
-  if (!nextMinor) {
-    const nextPatch = await getNextPatchVersion(packageName, currentVersion)
-
-    if (!nextPatch) {
-      log.info(
-        color.dim(
-          `${color.bold(packageName)} v${currentVersion} - already on the latest version`
-        )
+  if (!currentVersion) {
+    log.warn(
+      color.yellow(
+        `Could not determine installed version of ${color.bold(packageName)}${where}, skipping minor update`
       )
-      return
-    }
+    )
+    return
+  }
 
-    await execAsync(
-      pm,
-      ['add', ...devArgs, `${packageName}@^${nextPatch}`],
-      `Updating ${packageName} from v${currentVersion} to v${nextPatch}`,
-      `Failed to update ${packageName} to v${nextPatch}`,
-      `Updated ${packageName} from v${currentVersion} to v${nextPatch}`
+  const isDev = isDevDependency(target.pkg, packageName)
+  const devFlag = isDev
+    ? project.pm === 'bun'
+      ? '--dev'
+      : '--save-dev'
+    : undefined
+  const devArgs = devFlag ? [devFlag] : []
+  const addArgs = ['add', ...rootFlag(project, target), ...devArgs]
+
+  const nextVersion =
+    (await getNextMinorVersion(packageName, currentVersion)) ??
+    (await getNextPatchVersion(packageName, currentVersion))
+
+  if (!nextVersion) {
+    log.info(
+      color.dim(
+        `${color.bold(packageName)}${where} v${currentVersion} - already on the latest version`
+      )
     )
     return
   }
 
   await execAsync(
-    pm,
-    ['add', ...devArgs, `${packageName}@^${nextMinor}`],
-    `Updating ${packageName} from v${currentVersion} to v${nextMinor}`,
-    `Failed to update ${packageName} to v${nextMinor}`,
-    `Updated ${packageName} from v${currentVersion} to v${nextMinor}`
+    project.pm,
+    [...addArgs, `${packageName}@^${nextVersion}`],
+    `Updating ${packageName}${where} from v${currentVersion} to v${nextVersion}`,
+    `Failed to update ${packageName}${where} to v${nextVersion}`,
+    `Updated ${packageName}${where} from v${currentVersion} to v${nextVersion}`,
+    { cwd: target.dir }
   )
 }
 
@@ -101,22 +114,33 @@ export function loadCommands(program: Command) {
     .action(async (options: { force: boolean }) => {
       console.log()
 
-      let pm: PackageManager
+      let project: Project
       try {
-        pm = detectPackageManager()
+        project = resolveProject()
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         log.error(color.red(message))
         process.exit(1)
       }
 
+      const { pm, root } = project
+      const cwd = { cwd: root }
+
       intro(color.inverse(` oph - Update Project Dependencies (${pm}) `))
 
-      if (isGitRepo()) {
+      if (project.isMonorepo) {
+        log.info(
+          color.dim(
+            `Workspace root: ${color.bold(root)} (${project.packages.length - 1} packages)`
+          )
+        )
+      }
+
+      if (isGitRepo(root)) {
         if (options.force) {
           log.warn(color.yellow('Git branch check skipped (--force)'))
         } else {
-          const { upToDate, reason } = await isBranchUpToDate()
+          const { upToDate, reason } = await isBranchUpToDate(root)
 
           if (!upToDate) {
             log.error(color.red(reason))
@@ -132,7 +156,7 @@ export function loadCommands(program: Command) {
       let pnpmCrossedV11 = false
 
       if (pm === 'pnpm') {
-        const currentPnpm = await getPnpmVersion()
+        const currentPnpm = await getPnpmVersion(root)
         const latestPnpm = await getLatestVersion('pnpm')
         pnpmCrossedV11 =
           currentPnpm !== null &&
@@ -159,7 +183,7 @@ export function loadCommands(program: Command) {
             )
           )
           try {
-            const { migrated, reason } = migrateWorkspaceForPnpmV11()
+            const { migrated, reason } = migrateWorkspaceForPnpmV11(root)
             if (migrated) {
               log.success(
                 color.green('Migrated pnpm-workspace.yaml to allowBuilds')
@@ -176,12 +200,16 @@ export function loadCommands(program: Command) {
             process.exit(1)
           }
 
-          const nodeModulesPath = resolve(process.cwd(), 'node_modules')
-          if (existsSync(nodeModulesPath)) {
+          const nodeModulesPaths = project.packages
+            .map((p) => resolve(p.dir, 'node_modules'))
+            .filter((p) => existsSync(p))
+          if (nodeModulesPaths.length > 0) {
             const s = spinner()
             s.start('Removing node_modules for pnpm v11 reinstall')
             try {
-              rmSync(nodeModulesPath, { recursive: true, force: true })
+              for (const p of nodeModulesPaths) {
+                rmSync(p, { recursive: true, force: true })
+              }
               s.stop('Removed node_modules')
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err)
@@ -198,7 +226,8 @@ export function loadCommands(program: Command) {
           ['use', 'pnpm@latest'],
           'Updating pnpm',
           'Failed to update pnpm',
-          'Updated pnpm successfully'
+          'Updated pnpm successfully',
+          cwd
         )
 
         if (pnpmCrossedV11) {
@@ -207,96 +236,129 @@ export function loadCommands(program: Command) {
             ['install'],
             'Reinstalling dependencies for pnpm v11',
             'Failed to reinstall dependencies',
-            'Reinstalled dependencies successfully'
+            'Reinstalled dependencies successfully',
+            cwd
           )
         }
       }
 
+      const recursiveArgs = pm === 'pnpm' && project.isMonorepo ? ['-r'] : []
+
       await execAsync(
         pm,
-        ['update'],
+        ['update', ...recursiveArgs],
         'Updating dependencies',
         'Failed to update dependencies',
-        'Updated dependencies successfully'
+        'Updated dependencies successfully',
+        cwd
       )
 
       // React / Next.js minor version updates
-      const packageJson = readProjectPackageJson()
       const frameworkPackages = ['react', 'react-dom', 'next']
-      const installedFrameworkPackages = frameworkPackages.filter((pkg) =>
-        isPackageInstalled(packageJson, pkg)
-      )
 
-      if (installedFrameworkPackages.length > 0) {
+      for (const target of project.packages) {
+        const installed = frameworkPackages.filter((pkg) =>
+          isPackageInstalled(target.pkg, pkg)
+        )
+        if (installed.length === 0) continue
+
         log.info(
           color.cyan(
-            `Detected ${installedFrameworkPackages.map((p) => color.bold(p)).join(', ')} - checking for minor updates`
+            `Detected ${installed.map((p) => color.bold(p)).join(', ')}${inTarget(project, target)} - checking for minor updates`
           )
         )
 
-        for (const pkg of installedFrameworkPackages) {
-          const isDev = isDevDependency(packageJson, pkg)
-          await updateToNextMinor(pm, pkg, isDev)
+        for (const pkg of installed) {
+          await updateToNextMinor(project, target, pkg)
         }
       }
 
       // Tailwind CSS upgrade
-      if (isPackageInstalled(packageJson, 'tailwindcss')) {
-        const execPrefix = pm === 'bun' ? 'bunx' : 'pnpx'
+      const execPrefix = pm === 'bun' ? 'bunx' : 'pnpx'
+
+      for (const target of project.packages) {
+        if (!isPackageInstalled(target.pkg, 'tailwindcss')) continue
+        const where = inTarget(project, target)
 
         await execAsync(
           execPrefix,
           ['@tailwindcss/upgrade', '--force'],
-          'Upgrading Tailwind CSS',
-          'Failed to upgrade Tailwind CSS',
-          'Upgraded Tailwind CSS successfully'
+          `Upgrading Tailwind CSS${where}`,
+          `Failed to upgrade Tailwind CSS${where}`,
+          `Upgraded Tailwind CSS${where} successfully`,
+          { cwd: target.dir }
         )
       }
 
+      // Biome: update wherever it is declared, otherwise install at the root
+      const declaringBiome = project.packages.filter((p) =>
+        isPackageInstalled(p.pkg, '@biomejs/biome')
+      )
+      const biomeTargets =
+        declaringBiome.length > 0 ? declaringBiome : [project.packages[0]]
+
       const addExactArgs =
         pm === 'bun' ? ['--dev', '--exact'] : ['--save-dev', '--save-exact']
-
-      const biomeVersionBefore = await getInstalledVersion('@biomejs/biome')
-
-      await execAsync(
-        pm,
-        ['add', ...addExactArgs, '@biomejs/biome@latest'],
-        'Updating Biome',
-        'Failed to update Biome',
-        'Updated Biome successfully'
-      )
-
-      const biomeVersionAfter = await getInstalledVersion('@biomejs/biome')
-      const biomeWasUpdated =
-        biomeVersionBefore !== null &&
-        biomeVersionAfter !== null &&
-        biomeVersionBefore !== biomeVersionAfter
-
       const biomeCmd = pm === 'bun' ? 'bunx' : 'pnpm'
       const biomeBaseArgs = pm === 'bun' ? [] : ['exec']
 
-      await execAsync(
-        biomeCmd,
-        [...biomeBaseArgs, 'biome', 'migrate', '--write'],
-        'Updating Biome configuration',
-        'Failed to update Biome configuration',
-        'Updated Biome configuration successfully'
-      )
-
-      if (biomeWasUpdated) {
-        log.info(
-          color.cyan(
-            `Biome updated from v${biomeVersionBefore} to v${biomeVersionAfter} - applying new formatting rules`
-          )
+      for (const target of biomeTargets) {
+        const where = inTarget(project, target)
+        const biomeVersionBefore = await getTargetVersion(
+          project,
+          target,
+          '@biomejs/biome'
         )
 
         await execAsync(
-          biomeCmd,
-          [...biomeBaseArgs, 'biome', 'check', '--write', '.'],
-          'Applying Biome formatting and lint fixes',
-          'Failed to apply Biome formatting and lint fixes',
-          'Applied Biome formatting and lint fixes successfully'
+          pm,
+          [
+            'add',
+            ...rootFlag(project, target),
+            ...addExactArgs,
+            '@biomejs/biome@latest',
+          ],
+          `Updating Biome${where}`,
+          `Failed to update Biome${where}`,
+          `Updated Biome${where} successfully`,
+          { cwd: target.dir }
         )
+
+        const biomeVersionAfter = await getTargetVersion(
+          project,
+          target,
+          '@biomejs/biome'
+        )
+        const biomeWasUpdated =
+          biomeVersionBefore !== null &&
+          biomeVersionAfter !== null &&
+          biomeVersionBefore !== biomeVersionAfter
+
+        await execAsync(
+          biomeCmd,
+          [...biomeBaseArgs, 'biome', 'migrate', '--write'],
+          `Updating Biome configuration${where}`,
+          `Failed to update Biome configuration${where}`,
+          `Updated Biome configuration${where} successfully`,
+          { cwd: target.dir }
+        )
+
+        if (biomeWasUpdated) {
+          log.info(
+            color.cyan(
+              `Biome${where} updated from v${biomeVersionBefore} to v${biomeVersionAfter} - applying new formatting rules`
+            )
+          )
+
+          await execAsync(
+            biomeCmd,
+            [...biomeBaseArgs, 'biome', 'check', '--write', '.'],
+            `Applying Biome formatting and lint fixes${where}`,
+            `Failed to apply Biome formatting and lint fixes${where}`,
+            `Applied Biome formatting and lint fixes${where} successfully`,
+            { cwd: target.dir }
+          )
+        }
       }
 
       const auditPassed = await execAsync(
@@ -304,7 +366,8 @@ export function loadCommands(program: Command) {
         ['audit'],
         'Auditing for known vulnerabilities',
         'Vulnerability audit found issues - review the report below',
-        'Vulnerability audit passed'
+        'Vulnerability audit passed',
+        cwd
       )
 
       if (auditPassed) {
